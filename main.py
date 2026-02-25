@@ -180,6 +180,18 @@ def extract_attack_event(embed: discord.Embed) -> dict | None:
     return data
 
 
+
+
+def normalize_end_time(value: datetime | None) -> datetime | None:
+    if not value:
+        return None
+
+    # В сообщениях о старте некоторые источники присылают 1970-01-01 как заглушку окончания.
+    if value.year <= 1970:
+        return None
+
+    return value
+
 def build_telegram_text(
     event: dict,
     start_time: datetime | None = None,
@@ -189,25 +201,31 @@ def build_telegram_text(
     target_ip = event.get("target_ip")
     target_service = SERVICE_BY_IP.get(target_ip, DEFAULT_SERVICE)
 
-    lines = ["📩 <b>Сообщение из AntiDDOS</b>", ""]
-
-    lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
+    normalized_end_time = normalize_end_time(end_time)
 
     start_text = format_moscow_datetime(start_time)
-    if start_text:
-        lines.append(f"<b>🟠 Начало атаки:</b> {html_escape(start_text)}")
+    end_text = format_moscow_datetime(normalized_end_time)
 
-    end_text = format_moscow_datetime(end_time)
     if end_text:
         end_line = f"<b>🟢 Завершение атаки:</b> {html_escape(end_text)}"
         if duration:
             end_line += f" ({html_escape(duration)})"
-        lines.append(end_line)
+    else:
+        end_line = "<b>🟢 Завершение атаки:</b> ..."
+
+    timeline_block = []
+    if start_text:
+        timeline_block.append(f"<b>🟠 Начало атаки:</b> {html_escape(start_text)}")
+    timeline_block.append(end_line)
+
+    lines = ["📩 <b>Сообщение из AntiDDOS</b>", "", *timeline_block, ""]
+
+    lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
 
     if event.get("peak_bw"):
         lines.append(f"<b>📶 Пик трафика:</b> {html_escape(event['peak_bw'])}")
     if event.get("peak_pps"):
-        lines.append(f"<b>📦 Пиковое количество пакетов в секунду:</b> {html_escape(event['peak_pps'])}")
+        lines.append(f"<b>📦 Пакеты в секунду:</b> {html_escape(event['peak_pps'])}")
 
     dropped_packets = event.get("dropped_packets")
     dropped_bytes = event.get("dropped_bytes")
@@ -249,8 +267,9 @@ async def process_attack_event(event: dict):
         except ValueError:
             start_dt = None
 
-    duration = format_duration(start_dt, event.get("end_time"))
-    text = build_telegram_text(event, start_time=start_dt, end_time=event.get("end_time"), duration=duration)
+    end_dt = normalize_end_time(event.get("end_time"))
+    duration = format_duration(start_dt, end_dt)
+    text = build_telegram_text(event, start_time=start_dt, end_time=end_dt, duration=duration)
 
     edited = False
     if state and state.get("telegram_message_id"):
