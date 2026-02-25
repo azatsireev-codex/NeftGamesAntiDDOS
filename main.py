@@ -170,21 +170,34 @@ def extract_attack_event(embed: discord.Embed) -> dict | None:
 
 
 def build_telegram_text(event: dict, resolved_title: str, duration: str | None = None) -> str:
-    target_service = SERVICE_BY_IP.get(event.get("target_ip"), DEFAULT_SERVICE)
-    lines = ["📩 <b>Сообщение из AntiDDOS</b>", "", f"<b>{html_escape(resolved_title)}</b>", ""]
+    target_ip = event.get("target_ip")
+    target_service = SERVICE_BY_IP.get(target_ip, DEFAULT_SERVICE)
 
-    lines.append(f"<b>🎯 Целевой сервис:</b> {html_escape(target_service)}")
+    title = resolved_title
+    if duration and "заверш" in resolved_title.lower():
+        title = f"{resolved_title} ({duration})"
+
+    lines = ["📩 <b>AntiDDOS</b>", "", f"<b>{html_escape(title)}</b>", ""]
+
+    lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
+    if target_ip:
+        lines.append(f"<b>🌐 IP:</b> {html_escape(target_ip)}")
 
     if event.get("peak_bw"):
-        lines.append(f"<b>📶 Пропускная способность:</b> {html_escape(event['peak_bw'])}")
+        lines.append(f"<b>📶 Пик трафика:</b> {html_escape(event['peak_bw'])}")
     if event.get("peak_pps"):
-        lines.append(f"<b>📦 Пакеты в секунду:</b> {html_escape(event['peak_pps'])}")
-    if event.get("dropped_bytes"):
-        lines.append(f"<b>💾 Байт отброшено:</b> {html_escape(event['dropped_bytes'])}")
-    if event.get("dropped_packets"):
-        lines.append(f"<b>📦 Пакетов отброшено:</b> {html_escape(event['dropped_packets'])}")
-    if duration:
-        lines.append(f"<b>⏳ Длительность атаки:</b> {html_escape(duration)}")
+        lines.append(f"<b>📦 Пик pps:</b> {html_escape(event['peak_pps'])}")
+
+    dropped_packets = event.get("dropped_packets")
+    dropped_bytes = event.get("dropped_bytes")
+    if dropped_packets and dropped_bytes:
+        lines.append(
+            f"<b>🧱 Отброшено:</b> {html_escape(dropped_packets)} пакетов ({html_escape(dropped_bytes)})"
+        )
+    elif dropped_packets:
+        lines.append(f"<b>🧱 Отброшено:</b> {html_escape(dropped_packets)} пакетов")
+    elif dropped_bytes:
+        lines.append(f"<b>🧱 Отброшено:</b> {html_escape(dropped_bytes)}")
 
     return "\n".join(lines)
 
