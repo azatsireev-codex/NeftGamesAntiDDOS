@@ -177,7 +177,7 @@ def build_telegram_text(event: dict, resolved_title: str, duration: str | None =
     if duration and "заверш" in resolved_title.lower():
         title = f"{resolved_title} ({duration})"
 
-    lines = ["📩 <b>AntiDDOS</b>", "", f"<b>{html_escape(title)}</b>", ""]
+    lines = ["📩 <b>Сообщение из AntiDDOS</b>", "", f"<b>{html_escape(title)}</b>", ""]
 
     lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
 
