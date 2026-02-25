@@ -207,12 +207,12 @@ def build_telegram_text(
     end_text = format_moscow_datetime(normalized_end_time)
 
     if end_text:
-        status_line = f"<b>🟢 Атака завершена:</b> {html_escape(end_text)}"
+        status_line = f"<b>✅ Атака завершена:</b> {html_escape(end_text)}"
         if duration:
             status_line += f" ({html_escape(duration)})"
     else:
         status_time = html_escape(start_text) if start_text else "..."
-        status_line = f"<b>🟠 Атака началась:</b> {status_time}"
+        status_line = f"<b>⚠️ Атака началась:</b> {status_time}"
 
     lines = ["📩 <b>Сообщение из AntiDDOS</b>", "", status_line, ""]
 
