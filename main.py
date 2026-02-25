@@ -2,7 +2,7 @@ import discord
 import aiohttp
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 # === НАСТРОЙКИ ===
 DISCORD_TOKEN = ""
@@ -95,6 +95,17 @@ def parse_attack_datetime(raw: str) -> datetime | None:
     return None
 
 
+
+MSK_TIMEZONE = timezone(timedelta(hours=3))
+
+
+def format_moscow_datetime(value: datetime | None) -> str | None:
+    if not value:
+        return None
+
+    return value.astimezone(MSK_TIMEZONE).strftime("%d.%m.%Y %H:%M (МСК)")
+
+
 def format_duration(start: datetime | None, end: datetime | None) -> str | None:
     if not start or not end or end < start:
         return None
@@ -169,22 +180,34 @@ def extract_attack_event(embed: discord.Embed) -> dict | None:
     return data
 
 
-def build_telegram_text(event: dict, resolved_title: str, duration: str | None = None) -> str:
+def build_telegram_text(
+    event: dict,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
+    duration: str | None = None,
+) -> str:
     target_ip = event.get("target_ip")
     target_service = SERVICE_BY_IP.get(target_ip, DEFAULT_SERVICE)
 
-    title = resolved_title
-    if duration and "заверш" in resolved_title.lower():
-        title = f"{resolved_title} ({duration})"
-
-    lines = ["📩 <b>Сообщение из AntiDDOS</b>", "", f"<b>{html_escape(title)}</b>", ""]
+    lines = ["📩 <b>Сообщение из AntiDDOS</b>", ""]
 
     lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
+
+    start_text = format_moscow_datetime(start_time)
+    if start_text:
+        lines.append(f"<b>🟠 Начало атаки:</b> {html_escape(start_text)}")
+
+    end_text = format_moscow_datetime(end_time)
+    if end_text:
+        end_line = f"<b>🟢 Завершение атаки:</b> {html_escape(end_text)}"
+        if duration:
+            end_line += f" ({html_escape(duration)})"
+        lines.append(end_line)
 
     if event.get("peak_bw"):
         lines.append(f"<b>📶 Пик трафика:</b> {html_escape(event['peak_bw'])}")
     if event.get("peak_pps"):
-        lines.append(f"<b>📦 Пик pps:</b> {html_escape(event['peak_pps'])}")
+        lines.append(f"<b>📦 Пиковое количество пакетов в секунду:</b> {html_escape(event['peak_pps'])}")
 
     dropped_packets = event.get("dropped_packets")
     dropped_bytes = event.get("dropped_bytes")
@@ -203,12 +226,12 @@ def build_telegram_text(event: dict, resolved_title: str, duration: str | None =
 async def process_attack_event(event: dict):
     attack_uuid = event.get("attack_uuid")
     if not attack_uuid:
-        text = build_telegram_text(event, event["title"])
+        text = build_telegram_text(event, start_time=event.get("start_time"), end_time=event.get("end_time"))
         await send_to_telegram(text)
         return
 
     if event["event_type"] == "start":
-        text = build_telegram_text(event, event["title"])
+        text = build_telegram_text(event, start_time=event.get("start_time"), end_time=event.get("end_time"))
         message_id = await send_to_telegram(text)
         if message_id:
             attack_state[attack_uuid] = {
@@ -227,8 +250,7 @@ async def process_attack_event(event: dict):
             start_dt = None
 
     duration = format_duration(start_dt, event.get("end_time"))
-    end_title = "✅ Атака завершена"
-    text = build_telegram_text(event, end_title, duration=duration)
+    text = build_telegram_text(event, start_time=start_dt, end_time=event.get("end_time"), duration=duration)
 
     edited = False
     if state and state.get("telegram_message_id"):
