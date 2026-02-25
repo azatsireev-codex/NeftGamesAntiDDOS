@@ -180,8 +180,6 @@ def build_telegram_text(event: dict, resolved_title: str, duration: str | None =
     lines = ["📩 <b>AntiDDOS</b>", "", f"<b>{html_escape(title)}</b>", ""]
 
     lines.append(f"<b>🎯 Сервис:</b> {html_escape(target_service)}")
-    if target_ip:
-        lines.append(f"<b>🌐 IP:</b> {html_escape(target_ip)}")
 
     if event.get("peak_bw"):
         lines.append(f"<b>📶 Пик трафика:</b> {html_escape(event['peak_bw'])}")
